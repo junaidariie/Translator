@@ -3,4 +3,5 @@ uvicorn
 pydantic
 transformers
 torch
+sentencepiece
 streamlit
