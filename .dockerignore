@@ -1,0 +1,14 @@
+.env
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.idea
+*.log
+dist
+build
+/.venv
+pip-wheel-metadata
+*.egg-info
+node_modules
