@@ -1,4 +1,6 @@
 streamlit==1.32.2
 transformers==4.37.2
-torch==2.1.2
+torch==2.1.2+cpu
 sentencepiece
+sacremoses
+--extra-index-url https://download.pytorch.org/whl/cpu
