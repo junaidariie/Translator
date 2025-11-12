@@ -107,14 +107,6 @@ You can deploy backend on:
 
 📌 API is ready — just needs cloud credit to upload.
 
----
-
-## 📸 Screenshots (optional)
-
-_Add screenshots here if needed._
-
----
-
 ## ✅ Example Translation
 
 | Input Language | Output Language | Result |
@@ -123,22 +115,3 @@ _Add screenshots here if needed._
 | Hindi | English | ✅ My name is Julie |
 
 ---
-
-## 🤝 Contributions
-
-Pull requests welcome.  
-Add new languages, UI themes or speech-to-text support.
-
----
-
-## 📜 License
-
-MIT License — free to use & modify.
-
----
-
-## 💬 Credits
-
-Built by **Junaid**  
-• Practical ML apps  
-• Deep learning, Streamlit, NLP & FastAPI
