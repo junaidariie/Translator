@@ -1,6 +1,4 @@
 import streamlit as st
-from transformers import pipeline, M2M100Tokenizer
-import torch
 import time
 
 # Language names mapping
@@ -36,6 +34,15 @@ LANGUAGE_NAMES = {
 # Initialize session state for theme
 if 'dark_mode' not in st.session_state:
     st.session_state.dark_mode = False
+
+if 'model_loaded' not in st.session_state:
+    st.session_state.model_loaded = False
+
+if 'translator' not in st.session_state:
+    st.session_state.translator = None
+
+if 'tokenizer' not in st.session_state:
+    st.session_state.tokenizer = None
 
 def get_theme_styles():
     if st.session_state.dark_mode:
@@ -106,15 +113,6 @@ def get_theme_styles():
                 margin-top: 10px;
             }
             
-            .translation-card {
-                background-color: #16213e;
-                padding: 25px;
-                border-radius: 12px;
-                margin: 15px 0;
-                border: 1px solid #2c3e50;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            }
-            
             .translation-result {
                 background-color: #0f3460;
                 padding: 20px;
@@ -157,13 +155,6 @@ def get_theme_styles():
                 padding: 25px;
                 margin-top: 30px;
                 border-top: 1px solid #34495e;
-            }
-            
-            .theme-toggle {
-                position: fixed;
-                top: 80px;
-                right: 20px;
-                z-index: 999;
             }
             
             .stTextArea textarea {
@@ -237,15 +228,6 @@ def get_theme_styles():
                 margin-top: 10px;
             }
             
-            .translation-card {
-                background-color: #ffffff;
-                padding: 25px;
-                border-radius: 12px;
-                margin: 15px 0;
-                border: 1px solid #e0e0e0;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            }
-            
             .translation-result {
                 background-color: #f8f9fa;
                 padding: 20px;
@@ -290,43 +272,48 @@ def get_theme_styles():
                 border-top: 1px solid #e0e0e0;
             }
             
-            .theme-toggle {
-                position: fixed;
-                top: 80px;
-                right: 20px;
-                z-index: 999;
-            }
-            
             .stTextArea textarea {
                 font-size: 16px;
             }
         </style>
         """
 
-# Cache the model loading
-@st.cache_resource
 def load_model():
-    tokenizer = M2M100Tokenizer.from_pretrained("facebook/m2m100_418M")
-    translator = pipeline(
-        "translation",
-        model="facebook/m2m100_418M",
-        use_fast=True
-    )
-    return translator, tokenizer
+    """Load model with error handling"""
+    try:
+        from transformers import pipeline, M2M100Tokenizer
+        import torch
+        
+        tokenizer = M2M100Tokenizer.from_pretrained("facebook/m2m100_418M")
+        translator = pipeline(
+            "translation",
+            model="facebook/m2m100_418M",
+            use_fast=True,
+            device=-1  # Force CPU usage
+        )
+        return translator, tokenizer, None
+    except Exception as e:
+        return None, None, str(e)
 
 def translate_text(text, src, tgt, translator):
-    start = time.time()
-    result = translator(text, src_lang=src, tgt_lang=tgt, max_length=100)
-    elapsed = time.time() - start
-    
-    output = {
-        "input_text": text,
-        "source_language": src,
-        "target_language": tgt,
-        "translation": result[0]["translation_text"],
-        "inference_time_sec": round(elapsed, 3)
-    }
-    return output
+    """Translate with error handling"""
+    try:
+        start = time.time()
+        result = translator(text, src_lang=src, tgt_lang=tgt, max_length=512)
+        elapsed = time.time() - start
+        
+        output = {
+            "translation": result[0]["translation_text"],
+            "inference_time_sec": round(elapsed, 3),
+            "error": None
+        }
+        return output
+    except Exception as e:
+        return {
+            "translation": None,
+            "inference_time_sec": 0,
+            "error": str(e)
+        }
 
 def show_loader():
     return st.markdown("""
@@ -344,7 +331,8 @@ def main():
     st.set_page_config(
         page_title="M2M100 Translator",
         page_icon="🌍",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
     # Apply theme styles
@@ -363,6 +351,13 @@ def main():
         st.markdown("---")
         st.markdown("### 📊 About")
         st.info("This app uses Meta's M2M100 model to translate between 100+ languages with high accuracy.")
+        
+        st.markdown("---")
+        st.markdown("### 🔧 Model Status")
+        if st.session_state.model_loaded:
+            st.success("✅ Model Loaded")
+        else:
+            st.warning("⏳ Model Not Loaded")
     
     # Header
     st.markdown("""
@@ -372,9 +367,22 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Load model with progress indicator
-    with st.spinner("🔄 Loading translation model..."):
-        translator, tokenizer = load_model()
+    # Load model on first run
+    if not st.session_state.model_loaded:
+        with st.spinner("🔄 Loading translation model... This may take a minute."):
+            translator, tokenizer, error = load_model()
+            
+            if error:
+                st.error(f"❌ Error loading model: {error}")
+                st.info("💡 Tip: Make sure you have `transformers` and `torch` installed in your requirements.txt")
+                st.stop()
+            else:
+                st.session_state.translator = translator
+                st.session_state.tokenizer = tokenizer
+                st.session_state.model_loaded = True
+                st.success("✅ Model loaded successfully!")
+                time.sleep(1)
+                st.rerun()
     
     # Create language display options
     lang_display = {f"{name} ({code})": code for code, name in LANGUAGE_NAMES.items()}
@@ -409,8 +417,6 @@ def main():
             key="tgt_lang"
         )
         tgt_lang = lang_display_sorted[tgt_lang_display]
-        
-        output_placeholder = st.empty()
     
     # Translation button
     st.markdown("<br>", unsafe_allow_html=True)
@@ -422,6 +428,8 @@ def main():
     if translate_btn:
         if not input_text.strip():
             st.warning("⚠️ Please enter some text to translate!")
+        elif not st.session_state.model_loaded:
+            st.error("❌ Model not loaded. Please refresh the page.")
         else:
             # Show loader
             loader_placeholder = st.empty()
@@ -429,58 +437,61 @@ def main():
                 show_loader()
             
             # Translate
-            result = translate_text(input_text, src_lang, tgt_lang, translator)
+            result = translate_text(input_text, src_lang, tgt_lang, st.session_state.translator)
             
             # Clear loader
             loader_placeholder.empty()
             
-            # Display results
-            st.markdown(f"""
-            <div class="translation-result">
-                <h4 style="margin-top: 0;">✨ Translation Result</h4>
-                <p class="result-text">{result['translation']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Show metrics
-            st.markdown("<br>", unsafe_allow_html=True)
-            metric_col1, metric_col2, metric_col3 = st.columns(3)
-            
-            with metric_col1:
+            if result['error']:
+                st.error(f"❌ Translation error: {result['error']}")
+            else:
+                # Display results
                 st.markdown(f"""
-                <div class="metric-box">
-                    <div class="metric-label">⏱️ Inference Time</div>
-                    <div class="metric-value">{result['inference_time_sec']}s</div>
+                <div class="translation-result">
+                    <h4 style="margin-top: 0;">✨ Translation Result</h4>
+                    <p class="result-text">{result['translation']}</p>
                 </div>
                 """, unsafe_allow_html=True)
-            
-            with metric_col2:
-                st.markdown(f"""
-                <div class="metric-box">
-                    <div class="metric-label">📊 Input Length</div>
-                    <div class="metric-value">{len(input_text)}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with metric_col3:
-                st.markdown(f"""
-                <div class="metric-box">
-                    <div class="metric-label">📊 Output Length</div>
-                    <div class="metric-value">{len(result['translation'])}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Download button
-            st.markdown("<br>", unsafe_allow_html=True)
-            col_dl1, col_dl2, col_dl3 = st.columns([1, 1, 1])
-            with col_dl2:
-                st.download_button(
-                    label="💾 Download Translation",
-                    data=result['translation'],
-                    file_name="translation.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+                
+                # Show metrics
+                st.markdown("<br>", unsafe_allow_html=True)
+                metric_col1, metric_col2, metric_col3 = st.columns(3)
+                
+                with metric_col1:
+                    st.markdown(f"""
+                    <div class="metric-box">
+                        <div class="metric-label">⏱️ Inference Time</div>
+                        <div class="metric-value">{result['inference_time_sec']}s</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with metric_col2:
+                    st.markdown(f"""
+                    <div class="metric-box">
+                        <div class="metric-label">📊 Input Length</div>
+                        <div class="metric-value">{len(input_text)}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with metric_col3:
+                    st.markdown(f"""
+                    <div class="metric-box">
+                        <div class="metric-label">📊 Output Length</div>
+                        <div class="metric-value">{len(result['translation'])}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Download button
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_dl1, col_dl2, col_dl3 = st.columns([1, 1, 1])
+                with col_dl2:
+                    st.download_button(
+                        label="💾 Download Translation",
+                        data=result['translation'],
+                        file_name="translation.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
     
     # Footer
     st.markdown("""
