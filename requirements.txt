@@ -1,7 +1,4 @@
-fastapi
-uvicorn
-pydantic
-transformers
-torch
+streamlit==1.32.2
+transformers==4.37.2
+torch==2.1.2
 sentencepiece
-streamlit
