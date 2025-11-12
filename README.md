@@ -3,6 +3,8 @@
 Polyglot is a modern, fast and visually polished **AI translation app** that supports **100+ languages** using Facebook’s `m2m100_418M` model.  
 It features a sleek Streamlit interface, animated loaders, light/dark theme toggle, safe clipboard copy and deployment-ready backend.
 
+app link - https://chatty-kiqmgjkgugos97jh4gdqqg.streamlit.app/
+
 ---
 
 ## ✅ Features
